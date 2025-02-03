@@ -238,11 +238,11 @@ module.exports = {
                     PRODUCTO_ID: i.PRODUCTO_ID,
                     DETALLE_NOMBREPRODUCTO: i.PRODUCTO_NOMBRE,
                     DETALLE_OFERTA: i.OFERTA_DESCRIPCION,
-                    DETALLE_CANTIDAD: i.PRODUCTO_CANTIDAD,
+                    DETALLE_CANTIDAD: i.PRODUCTO_CANTIDAD, //SI NO vALE REGRESA LA D A CANTIDA
                     DETALLE_PRECIOUNITARIO: i.PRECIO_UNITARIO,
                     DETALLE_PRECIOTOTAL: i.PRODUCTO_PRECIO,
                     DETALLE_PRODUCTOR: i.PERSONA_ID,
-                    DETALLE_DIRECCION: i.DIRECCION
+                    DETALLE_DIRECCION: i.DIRECCION //SI NO vALE REGRESA LA D A CANTIDA
                 }
 
                 console.log(detailSell);
