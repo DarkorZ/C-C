@@ -153,7 +153,8 @@ module.exports = {
             const products = await pool.query(
                 `SELECT * 
                  FROM cycproducto 
-                 WHERE TotalExistencias <= 0`
+                 WHERE TotalExistencias <= 0
+                 ORDER BY Linea ASC`
             );
             
             // Renderizar la vista con los productos
