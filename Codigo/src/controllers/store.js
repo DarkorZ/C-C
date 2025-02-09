@@ -242,7 +242,7 @@ module.exports = {
                     DETALLE_PRECIOUNITARIO: i.PRECIO_UNITARIO,
                     DETALLE_PRECIOTOTAL: i.PRODUCTO_PRECIO,
                     DETALLE_PRODUCTOR: i.PERSONA_ID,
-                    DETALLE_DIRECCION: i.DIRECCION //SI NO vALE REGRESA LA D A CANTIDA
+                    DETALLE_DIRECCION: i.DIRECCION 
                 }
 
                 console.log(detailSell);

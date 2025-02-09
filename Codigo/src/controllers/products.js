@@ -8,32 +8,217 @@ cloudinary.config({
 });
 
 const fs = require('fs-extra');
+const xlsx = require('xlsx');
 
 module.exports = {
+    importProductsFromExcel: async (req, res) => {
+        try {
+            console.log('📂 Archivo recibido:', req.file);
+            
+            if (!req.file) {
+                return res.status(400).json({ success: false, message: 'No se ha subido ningún archivo' });
+            }
+
+            console.log('📑 Tipo de archivo:', req.file.mimetype);
+            console.log('📏 Tamaño del archivo:', req.file.size, 'bytes');
+            console.log('🔍 Verificando el contenido de req.file:', req.file);
+
+            let workbook; // 🔹 Declarar workbook antes del try
+
+            try {
+                const fileBuffer = fs.readFileSync(req.file.path); // Leer archivo desde el path
+                console.log('📂 Archivo leído desde el sistema de archivos con éxito.');
+
+                workbook = xlsx.read(fileBuffer, { type: 'buffer' }); // Convertir a formato de Excel
+                console.log('📊 Hojas disponibles en el archivo:', workbook.SheetNames);
+
+            } catch (error) {
+                console.error('❌ Error al procesar el archivo:', error.message);
+                return res.status(500).json({ success: false, message: 'Error al leer el archivo Excel' });
+            }
+
+            if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+                console.error('❌ ERROR: El archivo no contiene hojas válidas');
+                return res.status(400).json({ success: false, message: 'El archivo Excel no tiene hojas válidas' });
+            }
+
+            const sheetName = workbook.SheetNames[0]; // Tomamos la primera hoja
+            const sheet = workbook.Sheets[sheetName];
+
+            if (!sheet) {
+                console.error('❌ ERROR: No se pudo acceder a la hoja del archivo');
+                return res.status(400).json({ success: false, message: 'El archivo Excel no tiene hojas válidas' });
+            }
+
+            console.log(`📃 Leyendo datos de la hoja: ${sheetName}`);
+
+            // Extraer datos con encabezados originales
+            const rawData = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+            console.log('🔍 Datos crudos extraídos:', rawData);
+
+            if (!rawData || rawData.length === 0) {
+                console.error('❌ ERROR: No se encontraron datos en el archivo');
+                return res.status(400).json({ success: false, message: 'El archivo Excel está vacío' });
+            }
+
+            if (!rawData[0] || !Array.isArray(rawData[0])) {
+                console.error('❌ ERROR: El archivo Excel no contiene encabezados válidos');
+                return res.status(400).json({ success: false, message: 'El archivo Excel no contiene encabezados válidos' });
+            }
+
+            // Normalizar los nombres de las columnas
+            const headers = rawData[0].map(header =>
+                header ? header.toString().trim().replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '') : 'ColumnaDesconocida'
+            );
+
+            console.log('🔄 Encabezados normalizados:', headers);
+
+            // Convertir el resto de las filas en objetos con claves normalizadas
+            const productsData = rawData.slice(1).map(row => {
+                let obj = {};
+                headers.forEach((key, index) => {
+                    obj[key] = row[index] !== undefined ? row[index] : null;
+                });
+                return obj;
+            });
+
+            console.log('📋 Datos normalizados:', JSON.stringify(productsData, null, 2));
+
+            if (productsData.length === 0) {
+                console.error('❌ ERROR: No se encontraron filas de datos');
+                return res.status(400).json({ success: false, message: 'El archivo Excel no contiene datos válidos' });
+            }
+
+            let insertedCount = 0;
+
+            for (const row of productsData) {
+                if (!row.CodigoProducto || !row.Descripcion) {
+                    console.error('❌ Producto con datos inválidos:', row);
+                    continue;
+                }
+
+                const newProduct = {
+                    CodigoProducto: row.CodigoProducto ? row.CodigoProducto.toString() : 'SIN CODIGO',
+                    Descripcion: row.Descripcion || 'SIN DESCRIPCION',
+                    Linea: row.Linea || 'SIN LINEA',
+                    Subcategoria: row.Subcategoria || 'SIN SUBCATEGORIA',
+                    TotalExistencias: row.TotalExistencias ? parseInt(row.TotalExistencias, 10) : 0,
+                    Precio1: row.Precio1 ? parseFloat(row.Precio1) : 0.0,
+                    Precio2: row.Precio2 ? parseFloat(row.Precio2) : 0.0,
+                    CostoActual: row.CostoActual ? parseFloat(row.CostoActual) : 0.0,
+                    CostoUltimaCompra: row.CostoUltimaCompra ? parseFloat(row.CostoUltimaCompra) : 0.0,
+                    CostoVenta: row.CostoVenta ? parseFloat(row.CostoVenta) : 0.0,
+                    IVA: row.IVA ? parseFloat(row.IVA.toString().replace('%', '')) / 100 : 0.0
+                };
+
+                console.log('✅ Producto formateado:', newProduct);
+
+
+              try {
+                    // Verificar si el producto ya existe antes de insertarlo
+                    const [existingProduct] = await pool.query('SELECT COUNT(*) AS count FROM cycproducto WHERE CodigoProducto = ?', [newProduct.CodigoProducto]);
+
+                    if (existingProduct.count > 0) {
+                        console.log('⚠️ Producto ya existe, se omitirá:', newProduct.CodigoProducto);
+                        continue; // Omitir si ya existe
+                    }
+
+                    // Insertar solo si no existe
+                    await pool.query('INSERT INTO cycproducto SET ?', [newProduct]);
+                    insertedCount++;
+                } catch (sqlError) {
+                    console.error("❌ Error SQL al insertar producto:", sqlError.sqlMessage || sqlError.message);
+                }
+            }
+
+            res.render('products/cyc', {
+                success: true,
+                message: `Productos importados correctamente: ${insertedCount} registros insertados`
+            });
+
+        } catch (error) {
+            console.error('❌ Error al procesar el archivo:', error.message);
+            res.status(500).json({ success: false, message: 'Error al importar productos' });
+        }
+    },
+
+    cycPage: async (req, res) => {
+        res.render('products/cyc');
+    },
+
+    getProductsWithLowStock: async (req, res) => {
+        try {
+            // Consulta para obtener productos con TotalExistencias <= 0
+            const products = await pool.query(
+                `SELECT * 
+                 FROM cycproducto 
+                 WHERE TotalExistencias <= 0`
+            );
+            
+            // Renderizar la vista con los productos
+            res.render('products/lowStockList', { products });
+        } catch (error) {
+            console.error('Error al obtener los productos con bajo stock:', error);
+            res.status(500).json({ success: false, message: 'Error al obtener los productos con bajo stock' });
+        }
+    },
+
+
 
     getAllProducts: async (req, res) => {
-        const products = await pool.query('SELECT * FROM PRODUCTO, CATEGORIA, PRESENTACION, MEDIDA WHERE CATEGORIA.CATEGORIA_ID = PRODUCTO.CATEGORIA_ID AND PRESENTACION.PRESENTACION_ID = PRODUCTO.PRESENTACION_ID AND MEDIDA.MEDIDA_ID = PRODUCTO.MEDIDA_ID AND PERSONA_ID = ? AND PRODUCTO.PRODUCTO_ID NOT IN ( SELECT OFERTA.PRODUCTO_ID FROM OFERTA )', [req.user.PERSONA_ID]);
-
-        const offer = await pool.query('SELECT * FROM PRODUCTO, CATEGORIA, PRESENTACION, MEDIDA, OFERTA WHERE CATEGORIA.CATEGORIA_ID = PRODUCTO.CATEGORIA_ID AND PRESENTACION.PRESENTACION_ID = PRODUCTO.PRESENTACION_ID AND MEDIDA.MEDIDA_ID = PRODUCTO.MEDIDA_ID AND OFERTA.PRODUCTO_ID = PRODUCTO.PRODUCTO_ID AND PERSONA_ID = ?', [req.user.PERSONA_ID]);
-
-        const people = await pool.query('SELECT * FROM PERSONA, DIRECCION WHERE DIRECCION.DIRECCION_ID = PERSONA.DIRECCION_ID AND PERSONA_ID = ?', [req.user.PERSONA_ID]);
-
-        res.render('products/list', { products, offer, profile: people[0] });
+        try {
+            // Obtener productos con TotalExistencias negativo o 0 desde la tabla cycproducto
+            const products = await pool.query(
+                `SELECT * 
+                FROM cycproducto 
+                WHERE TotalExistencias <= 0`
+            );
+    
+            // Renderizar la vista con los productos
+            res.render('products/list', { products });
+        } catch (error) {
+            console.error('Error al obtener los productos:', error);
+            res.status(500).json({ success: false, message: 'Error al obtener los productos' });
+        }
     },
-
     createProductPage: async (req, res) => {
-        const category = await pool.query('SELECT * FROM CATEGORIA');
-        const presentation = await pool.query('SELECT * FROM PRESENTACION');
-        const measure = await pool.query('SELECT * FROM MEDIDA');
-
-        res.render('products/add', { category, presentation, measure });
+        try {
+            // Obtener productos con TotalExistencias negativo o 0 desde la tabla cycproducto
+            const products = await pool.query(
+                `SELECT *  FROM cycproducto WHERE TotalExistencias <= 0`
+            );
+    
+            // Obtener otras tablas necesarias para el formulario
+            const category = await pool.query('SELECT * FROM Subcategoria');
+            const presentation = await pool.query('SELECT * FROM Descripcion');
+            const measure = await pool.query('SELECT * FROM Linea');
+    
+            // Renderizar la vista con los productos y las opciones de categorías, presentaciones y medidas
+            res.render('products/add', { products, category, presentation, measure });
+        } catch (error) {
+            console.error('Error al cargar la página de creación de productos:', error);
+            res.status(500).json({ success: false, message: 'Error al cargar la página de creación de productos' });
+        }
     },
+    
 
     createProductPost: async (req, res) => {
         console.log(req.body);
-
+    
         const { CATEGORIA_ID, PRESENTACION_ID, MEDIDA_ID, PRODUCTO_NOMBRE, PRODUCTO_DESCRIPCION, OFERTA_DESCRIPCION, PRODUCTO_CANTIDAD, PRODUCTO_PRECIO, PRODUCTO_MEDIDA, PRODUCTO_FECHAPUBLICACION, PRODUCTO_FECHALIMITE, PRODUCTO_FECHACOCECHA, PRODUCTO_ESTADO, PRODUCTO_IMAGEN, PRODUCTO_URL } = req.body;
-
+    
+        // Verificar si el producto ya existe en la base de datos
+        const existingProduct = await pool.query(
+            `SELECT * FROM cycproducto WHERE CodigoProducto = ?`, 
+            [req.body.CodigoProducto]
+        );
+    
+        if (existingProduct.length > 0) {
+            req.flash('error', 'El producto con este código ya existe.');
+            return res.redirect('/products/cyc');
+        }
+    
         const newProduct = {
             PERSONA_ID: req.user.PERSONA_ID,
             CATEGORIA_ID,
@@ -51,15 +236,15 @@ module.exports = {
             PRODUCTO_IMAGEN,
             PRODUCTO_URL
         };
-
+    
         newProduct.PRODUCTO_ESTADO = 'Verdadero';
-
+    
         try {
             if (req.file.path) {
-                const cloudImage = await cloudinary.uploader.upload(req.file.path); //Permite guardar las imagenes en cloudinary
+                const cloudImage = await cloudinary.uploader.upload(req.file.path); // Permite guardar las imágenes en Cloudinary
                 newProduct.PRODUCTO_IMAGEN = cloudImage.public_id;
                 newProduct.PRODUCTO_URL = cloudImage.secure_url;
-                await fs.unlink(req.file.path); //Elimina las imagenes, para que no guarden de manera local
+                await fs.unlink(req.file.path); // Elimina las imágenes, para que no queden almacenadas localmente
             }
         } catch {
             const cloudImage = [];
@@ -68,28 +253,26 @@ module.exports = {
             newProduct.PRODUCTO_IMAGEN = cloudImage.public_id;
             newProduct.PRODUCTO_URL = cloudImage.secure_url;
         }
-
-        console.log(newProduct);//Muestra datos del formulario        
-
-        await pool.query('INSERT INTO PRODUCTO set ?', [newProduct]);//await le dice a la funcion que esta peticion va a tomar su tiempo
-console.log(req.user.PERSONA_ID)
+    
+        console.log(newProduct); // Muestra datos del formulario
+    
+        await pool.query('INSERT INTO cycproducto set ?', [newProduct]); // Inserta el nuevo producto
+    
         if (OFERTA_DESCRIPCION) {
-            const row = await pool.query('SELECT MAX(PRODUCTO_ID) AS ID FROM PRODUCTO, PERSONA WHERE PRODUCTO.PERSONA_ID = PERSONA.PERSONA_ID AND PERSONA.PERSONA_ID = ?', [req.user.PERSONA_ID]);
-           console.log(row)
-            const lastId = row[0];
-            console.log(lastId)
-            const lastProduct = lastId.ID;
-            console.log(lastProduct)
+            const row = await pool.query(
+                'SELECT MAX(PRODUCTO_ID) AS ID FROM cycproducto WHERE PERSONA_ID = ?', 
+                [req.user.PERSONA_ID]
+            );
+            const lastProduct = row[0].ID;
             const newOfert = {
                 PRODUCTO_ID: lastProduct,
                 OFERTA_DESCRIPCION
             };
-            console.log(newOfert);
             await pool.query('INSERT INTO OFERTA set ?', [newOfert]);
         }
-
-        req.flash('success', 'Producto Agregado');//Almacenamos el mensaje en success
-        res.redirect('/products');//redirecciona a la ruta products
+    
+        req.flash('success', 'Producto Agregado'); // Almacena el mensaje de éxito
+        res.redirect('/products/cyc'); // Redirige a la lista de productos
     },
 
     deleteProduct: async (req, res) => {

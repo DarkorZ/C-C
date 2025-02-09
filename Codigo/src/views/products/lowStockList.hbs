@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productos con Bajo Stock</title>
+</head>
+<body>
+    <h1>Productos con Total de Existencias Menor o Igual a 0</h1>
+
+    {{#if products.length}}
+        <table>
+            <thead>
+                <tr>
+                    <th>Código de Producto</th>
+                    <th>Descripción</th>
+                    <th>Línea</th>
+                    <th>Subcategoría</th>
+                    <th>Total Existencias</th>
+                    <th>Precio1</th>
+                    <th>Precio2</th>
+                    <th>Costo Actual</th>
+                    <th>Costo Venta</th>
+                    <th>IVA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each products}}
+                    <tr>
+                        <td>{{CodigoProducto}}</td>
+                        <td>{{Descripcion}}</td>
+                        <td>{{Linea}}</td>
+                        <td>{{Subcategoria}}</td>
+                        <td>{{TotalExistencias}}</td>
+                        <td>{{Precio1}}</td>
+                        <td>{{Precio2}}</td>
+                        <td>{{CostoActual}}</td>
+                        <td>{{CostoVenta}}</td>
+                        <td>{{IVA}}</td>
+                    </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    {{else}}
+        <p>No hay productos con bajo stock.</p>
+    {{/if}}
+</body>
+</html>

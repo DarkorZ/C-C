@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar Productos</title>
+    <!-- Aquí puedes agregar tus estilos CSS -->
+</head>
+<body>
+
+<div class="container p-4">
+    <div class="row">
+        <div class="col-xs-12 col-md-9 col-md-push-3">
+            <div class="panel panel-default">
+                <div class="panel-body">
+                    <div class="col-md-12">
+                        <div class="row">
+                            <div class="col-md-12 mx-auto">
+                                <div class="card-header">
+                                    <div class="panel-heading text-center">
+                                        <h3>
+                                            <div class="panel-title">Importar Productos desde Excel</div>
+                                        </h3>
+                                    </div>
+                                </div>
+
+                                <!-- Alerta de éxito -->
+                                {{#if success}}
+                                    <div class="alert alert-success" role="alert">
+                                        <strong>¡Éxito!</strong> {{message}}
+                                    </div>
+                                {{/if}}
+
+                                <!-- Alerta de error -->
+                                {{#if error}}
+                                    <div class="alert alert-danger" role="alert">
+                                        <strong>Error!</strong> {{error}}
+                                    </div>
+                                {{/if}}
+
+                                <!-- Formulario para importar Excel -->
+                                <div class="col-12 text-center">
+                                    <form action="/products/cyc" method="POST" enctype="multipart/form-data">
+                                        <div class="mb-3">
+                                            <input type="file" accept=".xlsx,.xls" name="archivo" class="form-control" required>
+                                        </div>
+                                        <div class="col-12 text-center">
+                                            <button class="btn btn-primary">Importar Productos</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cierre automático de alertas (opcional) -->
+<script>
+    setTimeout(() => {
+        const alert = document.querySelector('.alert');
+        if (alert) {
+            alert.style.display = 'none';
+        }
+    }, 5000);
+</script>
+
+</body>
+</html>
